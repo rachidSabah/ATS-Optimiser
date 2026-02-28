@@ -7,10 +7,9 @@ import {
   Printer, Edit3, Send, History, Settings, X, Trash2, Eye, EyeOff, Plane, Building2,
   FileCode, FileSpreadsheet, Gauge, Shield, Zap, Target, TrendingUp, AlertTriangle,
   CheckSquare, Layers, PieChart, FileJson, FileType, Users, Clock, Star, Award, Key,
-  Sparkles, Wand2, FileCheck, Brain, Rocket
+  Sparkles, Wand2, FileCheck, Brain, Rocket, Cloud
 } from 'lucide-react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import jsPDF from 'jspdf';
 
 // =============================================================================
 // AI PROVIDERS CONFIGURATION - Supports Multiple AI Models
@@ -1380,22 +1379,89 @@ Now optimize following ALL modules strictly. Return ONLY the JSON.
     return html;
   };
 
-  const downloadPdf = async () => {
+  // PDF Download - Opens print dialog for proper PDF export
+  const downloadPdf = () => {
+    const element = resumePreviewRef.current;
+    if (!element) {
+      alert('No resume content to export. Please optimize a resume first.');
+      return;
+    }
+    
+    // Get content and clean highlights
+    let content = element.innerHTML;
+    content = content.replace(/<span class="[^"]*bg-emerald-100[^"]*"[^>]*>(.*?)<\/span>/gi, '$1');
+    
+    // Create print window
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to export PDF');
+      return;
+    }
+    
+    const printDocument = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Optimized Resume</title>
+        <style>
+          @page { size: A4; margin: 1.27cm; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 12pt;
+            line-height: 1.15;
+            color: #000;
+            background: #fff;
+          }
+          h1 { font-size: 16pt; font-weight: bold; text-transform: uppercase; margin-bottom: 4pt; text-align: left; }
+          h2 { font-size: 14pt; font-weight: bold; margin-top: 12pt; margin-bottom: 6pt; }
+          h3 { font-size: 12pt; font-weight: bold; text-transform: uppercase; margin-top: 12pt; margin-bottom: 6pt; border: none; }
+          h4 { font-size: 12pt; font-weight: bold; margin-top: 8pt; margin-bottom: 4pt; }
+          p { margin-bottom: 4pt; text-align: justify; }
+          ul { margin: 0 0 8pt 0; padding-left: 20pt; }
+          li { margin-bottom: 2pt; list-style-type: disc; }
+          strong, b { font-weight: bold; }
+        </style>
+      </head>
+      <body>${content}</body>
+      </html>
+    `;
+    
+    printWindow.document.write(printDocument);
+    printWindow.document.close();
+    
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 500);
+  };
+
+  // Cloud Save - Save resume to localStorage
+  const handleCloudSave = () => {
     try {
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const element = resumePreviewRef.current;
-      if (!element) return;
+      const content = resumePreviewRef.current?.innerHTML || result?.optimized_content || '';
+      if (!content) {
+        alert('No resume content to save');
+        return;
+      }
       
-      await pdf.html(element, {
-        x: 12.7,
-        y: 12.7,
-        width: 184.6,
-        windowWidth: 800
-      });
+      const savedResumes = JSON.parse(localStorage.getItem('cloud_saved_resumes') || '[]');
+      const newSave = {
+        id: Date.now(),
+        content: content,
+        jobTitle: jobText?.substring(0, 50) || 'Untitled',
+        score: result?.score || 0,
+        createdAt: new Date().toISOString()
+      };
       
-      pdf.save('Optimized_Resume.pdf');
-    } catch (error) {
-      alert('PDF generation failed. Please use DOCX format.');
+      savedResumes.unshift(newSave);
+      if (savedResumes.length > 20) savedResumes.pop();
+      
+      localStorage.setItem('cloud_saved_resumes', JSON.stringify(savedResumes));
+      
+      alert(`✅ Resume saved to cloud storage!\n\nSaved: ${newSave.jobTitle}...\nScore: ${newSave.score}%\nTotal saved: ${savedResumes.length}`);
+    } catch (e: any) {
+      alert('Failed to save: ' + e.message);
     }
   };
 
@@ -1762,6 +1828,14 @@ Now optimize following ALL modules strictly. Return ONLY the JSON.
                 className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-emerald-700"
               >
                 <History className="w-4 h-4" /> Save to History
+              </button>
+              
+              {/* Cloud Save Button */}
+              <button
+                onClick={handleCloudSave}
+                className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700"
+              >
+                <Cloud className="w-4 h-4" /> Save to Cloud
               </button>
               
               <div className="border-t border-slate-200 pt-4">
